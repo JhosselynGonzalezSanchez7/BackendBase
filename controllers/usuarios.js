@@ -1,4 +1,5 @@
 const { request, response } = require("express");
+const bcryptjs = require("bcryptjs")
 const pool = require("../db/connection")
 const getUsers = async (req = request, res = response) =>{
     //estructura basica de cualquier endpoint al conectar en su BD
@@ -53,22 +54,22 @@ const getUserByID = async (req = request, res = response) =>{
 }
 
 const deleteUserByID = async (req = request, res = response) =>{
-    //estructura basica de cualquier endpoint al conectar en su BD
+    //Estructura basica de cualquier endpoint al conectar en su BD
     const {id} = req.query
     let conn;
-    //control de exepciones
+    //Control de exepciones
     try {
         conn = await pool.getConnection()
-        //esta es la consulta mas basica, se pueden hacer mas complejas
+        //Esta es la consulta mas basica, se pueden hacer mas complejas
         const {affectedRows} = await conn.query(`UPDATE Usuarios SET Activo = 'N' WHERE ID = ${id}`, (error) => {throw new Error(error) })
-        //siempre validar que no se obtuvieron resultados
+        //Siempre validar que no se obtuvieron resultados
         if (!affectedRows === 0) {
             res.status(404).json({msg: `No se pudo eliminar el registro con el ID ${id}`})
             return
         }
  
         res.json({msg: `El usuario con ID ${id} se eliminó sastifactoriamente. `})
-        //lo del cath y final siempre sera lo mismo
+        //Lo del catch y final siempre sera lo mismo
     } catch (error) {
         console.log(error)
         res.status(500).json({error})
@@ -80,13 +81,13 @@ const deleteUserByID = async (req = request, res = response) =>{
 }
 
 const addUser = async (req = request, res = response) =>{
-    //estructura basica de cualquier endpoint al conectar en su BD
+    //Estructura basica de cualquier endpoint al conectar en su BD
     const {
-        Usuario,
         Nombre,
         Apellidos,
         Edad,
         Genero,
+        Usuario,
         Contrasena,
         Fecha_Nacimiento = '1900-01-01',
         Activo
@@ -105,18 +106,21 @@ const addUser = async (req = request, res = response) =>{
     }
 
     let conn;
-    //control de exepciones
+    //Control de exepciones
     try {
         conn = await pool.getConnection()
-        //esta es la consulta mas basica, se pueden hacer mas complejas
+        //Esta es la consulta mas basica, se pueden hacer mas complejas
 
         const [user] = await conn.query(`SELECT Usuario FROM Usuarios WHERE Usuario = '${Usuario}'`)
-        
+
         if (user) {
             res.status(403).json({msg: `El usuario ${Usuario} ya se encuentra registrado.`})
             return
         }
-         
+
+        const salt = bcryptjs.genSaltSync()
+        const contrasenaCifrada = bcryptjs.hashSync(Contrasena, salt)
+
         const {affectedRows} = await conn.query(`
         INSERT INTO Usuarios (
             Usuario,
@@ -133,19 +137,19 @@ const addUser = async (req = request, res = response) =>{
             '${Apellidos}',
             '${Edad}',
             '${Genero || ''}',
-            '${Contrasena}',
+            '${contrasenaCifrada}',
             '${Fecha_Nacimiento}',
             '${Activo}'
         )
         `, (error) => {throw new Error(error) })
-        //siempre validar que no se obtuvieron resultados
+        //Siempre validar que no se obtuvieron resultados
         if (!affectedRows === 0) {
             res.status(404).json({msg: `No se pudo agregar el registro del Usuario ${Usuario}`})
             return
         }
  
         res.json({msg: `El usuario ${Usuario} se agrego sastifactoriamente. `})
-        //lo del cath y final siempre sera lo mismo
+        //Lo del catch y final siempre sera lo mismo
     } catch (error) {
         console.log(error)
         res.status(500).json({error})
@@ -155,4 +159,119 @@ const addUser = async (req = request, res = response) =>{
         }
     }
 }
-module.exports = {getUsers, getUserByID, deleteUserByID ,addUser}
+
+const updateUserByUsuario = async (req = request, res = response) =>{
+    //Estructura basica de cualquier endpoint al conectar en su BD
+    const {
+        Nombre,
+        Apellidos,
+        Edad,
+        Genero,
+        Usuario,
+        Contrasena,
+        Fecha_Nacimiento = '1900-01-01'
+        
+    } = req.body
+
+    if (
+        !Nombre ||
+        !Apellidos ||
+        !Edad ||
+        !Usuario ||
+        !Contrasena 
+
+    ) {
+        res.status(400).json({msg: "Falta información del usuario"})
+        return
+    }
+
+    let conn;
+    //Control de exepciones
+    try {
+        conn = await pool.getConnection()
+        //Esta es la consulta mas basica, se pueden hacer mas complejas
+
+        const [user] = await conn.query(`
+        SELECT Usuario, Nombre, Apellidos, Edad, Genero, Fecha_Nacimiento 
+        FROM Usuarios 
+        WHERE Usuario = '${Usuario}'
+        `)
+        
+        if (!user) {
+            res.status(403).json({msg: `El usuario ${Usuario} no se encuentra registrado.`})
+            return
+        }
+         
+        const {affectedRows} = await conn.query(`
+        UPDATE Usuarios SET  
+            Nombre = '${Nombre || user.Nombre}',
+            Apellidos = '${Apellidos || user.Apellidos}',
+            Edad = '${Edad || user.Edad}',
+            Genero = '${Genero || user.Genero}',
+            Fecha_Nacimiento = '${Fecha_Nacimiento}'
+            WHERE Usuario = '${Usuario}'
+
+        `, (error) => {throw new Error(error) })
+        //Siempre validar que no se obtuvieron resultados
+        if (!affectedRows === 0) {
+            res.status(404).json({msg: `No se pudo agregar el registro del Usuario ${Usuario}`})
+            return
+        }
+ 
+        res.json({msg: `El usuario ${Usuario} se actualizó sastifactoriamente. `})
+        //Lo del catch y final siempre sera lo mismo
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({error})
+    }finally{
+        if(conn){
+            conn.end()
+        }
+    }
+}
+
+const signIn = async (req = request, res = response) => {
+    const {
+       Usuario,
+       Contrasena,
+       } = req.body
+    if(      
+    !Usuario||
+    !Contrasena
+    ){
+       res.status(400).json({msg: "Falta informacion del usuario"})
+       return
+    }
+    let conn;
+   
+    try {
+       conn = await pool.getConnection()
+ 
+       const [user] = await conn.query(`SELECT Usuario, Contrasena, Activo FROM Usuario WHERE Usuario = '${Usuario}'`)
+ 
+       if(!user || user.Activo === 'N'){
+          let code = !user ? 1 : 2;
+          res.status(403).json({msg: `El Usuario o la contraseña son incorrectas.`, errorCode: code})
+          return
+       }
+ 
+       const accesoValido = bcrypt.compareSync(Contrasena, user.Contrasena)
+ 
+       if (!accesoValido) {
+          res.status(403).json({msg: `El Usuario o la contraseña son incorrectas.`, errorCode: 3})
+          return
+       }
+ 
+       res.json({msg: `el usuario ${Usuario} ha iniciado sesion satisfactoriamente`})
+       return
+    } catch (error) {
+       console.log(error)
+       res.status(500).json({error})
+    } finally{
+       if (conn) {
+           conn.end()
+       }
+    }
+   }
+
+module.exports = {getUsers, getUserByID, deleteUserByID ,addUser, updateUserByUsuario, signIn}
