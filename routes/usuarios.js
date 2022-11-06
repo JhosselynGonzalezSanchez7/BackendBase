@@ -13,7 +13,7 @@ router.post("/", addUser)
 router.post("/signin", signIn)
 
 /// PUT ///
-router.put("/", updateUserByUsuario)
+router.put("/", updateUserByUsuario )
 
 /// DELETE ///
 router.delete("/", deleteUserByID)
