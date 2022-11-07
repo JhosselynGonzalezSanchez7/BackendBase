@@ -262,4 +262,48 @@ const signIn = async (req = request, res = response) =>{
     }
 }
 
-module.exports = {getUsers, getUserByID, deleteUserByID ,addUser, updateUserByUsuario, signIn}
+const CambioContrasena=async(req = request,res = response) => {
+    const{
+
+        Usuario,
+        Contrasena,
+        NuevaContrasena
+    }=req.body
+    if(
+        !Usuario||
+        !Contrasena||
+        !NuevaContrasena
+    ){
+        res.status(400).json({msg:"Falta información del usuario" })
+    return
+    }
+ let conn;
+     try{
+         conn=await pool.getConnection()
+
+         const [user]=await conn.query(`SELECT Usuario, Contrasena, Activo FROM Usuarios WHERE Usuario= '${Usuario}'`)
+         if (!user || user.Activo==='N'){
+            let code =!user? 1 : 2;
+
+            res.status(403).json({msg:`El usuario o la contraseña son incorrectos`, errorCode:code})
+        return
+         }
+        const accesoValido=bcryptjs.hashSync.compareSync(Contrasena,user.Contrasena)
+        if(!accesoValido){
+        res.status(403).json({msg:`El usuario o la contraseña son incorrectos`,errorCode:3} )
+        return
+        }  
+
+         res.json({msg:`El usuario con ${Usuario}ha cambiado contraseña satisfactoriamente `})
+     } catch(error){
+         console.log(error)
+         res.status(500).json({error})
+     }finally{
+         if(conn){
+             conn.end()
+         }
+     }
+ 
+    }
+ 
+module.exports = {getUsers, getUserByID, deleteUserByID ,addUser, updateUserByUsuario, signIn,CambioContrasena}
